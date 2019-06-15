@@ -1,0 +1,114 @@
+https://cuidadodigital.com.br/tutorial-video-aula-openvpn-no-debian-squeeze-com-easy-rsa-pt-br/
+https://www.youtube.com/watch?v=YG70teDyMuc
+
+
+Criando chave RSA com Easy-Rsa
+Copiar diretório easy-rsa/2.0 para /etc/openvpn
+
+cp -r /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn/
+
+Editar arquivo vars dentro de /etc/openvpn/easy-rsa/2.0
+# vim /etc/openvpn/easy-rsa/2.0/vars
+Obs. Note que você deverá setar as seguintes informações de acordo com a sua necessidade
+#########################################################
+# export KEY_COUNTRY=”br” #
+# export KEY_PROVINCE=”go” #
+# export KEY_CITY=”goiania” #
+# export KEY_ORG=”cuidadodigital” #
+# export KEY_EMAIL=”matriz@cuidadodigital.com.br” #
+#########################################################
+
+export EASY_RSA=”`pwd`”
+export OPENSSL=”openssl”
+export PKCS11TOOL=”pkcs11-tool”
+export GREP=”grep”
+export KEY_CONFIG=`$EASY_RSA/whichopensslcnf $EASY_RSA`
+export KEY_DIR=”$EASY_RSA/keys”
+export PKCS11_MODULE_PATH=”dummy”
+export PKCS11_PIN=”dummy”
+export KEY_SIZE=1024
+export CA_EXPIRE=3650
+export KEY_EXPIRE=3650
+export KEY_COUNTRY=”br”
+export KEY_PROVINCE=”go”
+export KEY_CITY=”goiania”
+export KEY_ORG=”cuidadodigital”
+export KEY_EMAIL=”diego@cuidadodigital.com.br”
+
+Criar diretório keys e inserir os seguintes arquivos
+# mkdir /etc/openvpn/easy-rsa/2.0/keys
+# echo 01 > /etc/openvpn/easy-rsa/2.0/keys/serial
+# touch /etc/openvpn/easy-rsa/2.0/keys/index.txt
+# cd /etc/openvpn/easy-rsa/2.0/
+# source vars
+# ./build-ca
+# ./build-dh
+
+Após a criação do CA, criaremos a chave privada do Servidor com seguinte comando e depois do cliente
+# ./build-key-server servidor
+# ./build-key cliente
+
+Note que a variável servidor na frente de ./build-key-server ja preencherá o Common Name (CN), isso acontecerá também na geração de chvave do cliente
+
+Transferir as seguites chaves para o servidor cliente
+ca.crt
+cliente.crt
+cliente.csr
+dh1024.pem
+
+Utilize a ferramenta que melhor convir.
+
+Configurando o Servidor
+# /etc/openvpn/servidor.conf
+dev tun
+tls-server
+ifconfig 10.3.0.1 10.3.0.2
+tun-mtu 1500
+push “route 192.168.100.0 255.255.255.0”
+route 192.168.200.0 255.255.255.0 10.3.0.2
+comp-lzo
+dh easy-rsa/2.0/keys/dh1024.pem
+ca easy-rsa/2.0/keys/ca.crt
+cert easy-rsa/2.0/keys/servidor.crt
+key easy-rsa/2.0/keys/servidor.key
+
+# Interface TUN, não permite broadcast, Interface TAP faz bridge, não abordaremos nesse tuto
+# Servidor TLS
+# ifconfig 10.3.0.1 10.3.0.2 – Seta os IP´s das interfaces cliente X Servidor
+# tun-mtu 1500 informa MTU da interface
+# push “route 192.168.100.0 255.255.255.0” Avisa ao servidor cliente para add uma rota para sua rede interna
+# route 192.168.200.0 255.255.255.0 10.3.0.2 Cria rota local para rede 200.0/24 com saida pela interface 10.3.0.2
+# comp-lzo – Informa o metodo de compactação
+# Informe corretamente o endereços das chaves
+dh /easy-rsa/2.0/keys/dh1024.pem
+ca /easy-rsa/2.0/keys/ca.crt
+cert /easy-rsa/2.0/keys/servidor.crt
+key /easy-rsa/2.0/keys/servidor.key
+
+Configurando o Cliente
+# /etc/openvpn/cliente.conf
+remote 192.168.1.102
+ifconfig 10.3.0.1 10.3.0.2
+dev tun
+tun-mtu 1500
+pull
+comp-lzo
+tls-client
+dh easy-rsa/2.0/keys/dh1024.pem
+ca easy-rsa/2.0/keys/ca.crt
+cert easy-rsa/2.0/keys/cliente.crt
+key easy-rsa/2.0/keys/cliente.key
+ping 10
+verb 4
+mute 10
+
+# remote, informa o endereço do servidor
+# ifconfig 10.3.0.1 10.3.0.2
+# dev tun – Informa tipo de interface
+# tun-mtu 1500 seta tamanho da MTU
+# ping 10 – emite um ping a cada 10 segundo
+# verb 4 modo verboso nivel 4
+# mute 10 – The mute parameter is used to silence repeating messages
+
+Habilitar ip_forward para encaminhamento de pacotes
+echo 1 > /proc/sys/net/ipv4/ip_forward
